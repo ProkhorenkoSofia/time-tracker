@@ -1,6 +1,8 @@
 import os
+from datetime import timedelta
 
 class Config:
-    SECRET_KEY = 'your-secret-key-here-change-this'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///time_tracker.db'
+    SECRET_KEY = os.environ.get('BD_Kursach') or 'BD_Kursach'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///time_tracker.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = False
