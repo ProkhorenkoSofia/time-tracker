@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Личный кабинет - Time Tracker{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h5>👤 {{ current_user.username }}</h5>
+            </div>
+            <div class="card-body">
+                <p>Telegram: 
+                    {% if current_user.telegram_id %}
+                        ✅ {{ current_user.telegram_id }}
+                    {% else %}
+                        ❌ Не привязан
+                    {% endif %}
+                </p>
+                <a href="/profile" class="btn btn-sm btn-outline-primary">Редактировать профиль</a>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <h6>Быстрые действия:</h6>
+            <a href="/events/new" class="btn btn-success w-100 mb-2">➕ Новое событие</a>
+            <a href="/categories/new" class="btn btn-info w-100 mb-2">🏷️ Новая категория</a>
+        </div>
+    </div>
+    
+    <!-- Основной контент -->
+    <div class="col-md-9">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body text-center">
+                        <h4>{{ stats.categories }}</h4>
+                        <p>Категорий</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body text-center">
+                        <h4>{{ stats.events_today }}</h4>
+                        <p>Событий сегодня</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body text-center">
+                        <h4>{{ stats.total_events }}</h4>
+                        <p>Всего событий</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body text-center">
+                        <h4>{{ stats.templates }}</h4>
+                        <p>Шаблонов</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Последние события -->
+        <div class="card">
+            <div class="card-header">
+                <h5>📅 Последние события</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_events %}
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Тип</th>
+                                <th>Категория</th>
+                                <th>Время</th>
+                                <th>Длительность</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in recent_events %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if event.type == 'plan' else 'success' }}">
+                                        {{ '📋 План' if event.type == 'plan' else '✅ Факт' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="category-color" style="background-color: {{ event.category.color }};"></span>
+                                    {{ event.category.name }}
+                                </td>
+                                <td>{{ event.start_time.strftime('%H:%M') }}</td>
+                                <td>{{ ((event.end_time - event.start_time).seconds // 60) }} мин</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">У вас еще нет событий. <a href="/events/new">Создайте первое!</a></p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>🏷️ Ваши категории</h5>
+            </div>
+            <div class="card-body">
+                {% if categories %}
+                    <div class="d-flex flex-wrap">
+                        {% for category in categories %}
+                        <div class="category-badge me-2 mb-2" 
+                             style="background-color: {{ category.color }}20; 
+                                    border-left: 4px solid {{ category.color }}; 
+                                    padding: 8px 12px; border-radius: 4px;">
+                            {{ category.name }}
+                            <small class="text-muted">({{ category.events|length }} событий)</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">У вас нет категорий. <a href="/categories/new">Создайте первую!</a></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
