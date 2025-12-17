@@ -1,168 +1,111 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify
 from app import db
-from app.models import User, Category, Event, Template
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 
 bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def index():
-    """Главная страница с дашбордом БД"""
-    return render_template('index.html')
+    """Главная страница - работает без JavaScript"""
+    try:
+        from app.models import User
+        user_count = User.query.count()
+        db_status = "✅ Подключена"
+    except:
+        user_count = 0
+        db_status = "❌ Ошибка"
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Time Tracker - База данных</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body style="padding: 20px; background: #f8f9fa;">
+        <div class="container">
+            <h1 class="mb-4">⏰ Time Tracker Database</h1>
+            <div class="alert alert-success">
+                <h4>✅ Сайт работает на Render!</h4>
+                <p>Flask + PostgreSQL + SQLAlchemy</p>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">Статус базы данных</div>
+                        <div class="card-body">
+                            <p><strong>Статус:</strong> {db_status}</p>
+                            <p><strong>Пользователей:</strong> {user_count}</p>
+                            <p><strong>Время сервера:</strong> {datetime.now().strftime('%H:%M:%S')}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">Проверка API</div>
+                        <div class="card-body">
+                            <p>Проверьте эти ссылки:</p>
+                            <ul>
+                                <li><a href="/api/health" target="_blank">/api/health</a> - Проверка работы</li>
+                                <li><a href="/api/test" target="_blank">/api/test</a> - Тестовый API</li>
+                                <li><a href="/debug" target="_blank">/debug</a> - Отладка</li>
+                            </ul>
+                            <button onclick="location.reload()" class="btn btn-primary">Обновить страницу</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Управление базой данных</div>
+                <div class="card-body">
+                    <h5>Создать тестовые данные:</h5>
+                    <form action="/api/create-test" method="POST">
+                        <button type="submit" class="btn btn-success">Создать тестового пользователя</button>
+                    </form>
+                    
+                    <hr>
+                    
+                    <h5>Техническая информация:</h5>
+                    <p><strong>Stack:</strong> Flask, PostgreSQL, SQLAlchemy</p>
+                    <p><strong>Хостинг:</strong> Render.com</p>
+                    <p><strong>Курсовая работа</strong> по дисциплине "Структура ПО и БД"</p>
+                </div>
+            </div>
+            
+            <footer class="mt-4 text-center text-muted">
+                <p>База данных Time Tracker | {datetime.now().year}</p>
+            </footer>
+        </div>
+    </body>
+    </html>
+    """
 
 @bp.route('/debug')
 def debug():
-    """Страница отладки"""
+    """Отладочная информация"""
     import os
-    return {
-        'current_directory': os.getcwd(),
-        'template_folder': bp.template_folder if hasattr(bp, 'template_folder') else 'not set',
-        'templates_exists': os.path.exists('templates'),
-        'database_uri': 'set' if db.engine else 'not set',
-        'python_version': os.sys.version
-    }
-
-@bp.route('/api/stats')
-def api_stats():
-    """Статистика БД"""
     return jsonify({
-        'users': User.query.count(),
-        'categories': Category.query.count(),
-        'events': Event.query.count(),
-        'templates': Template.query.count()
+        'status': 'ok',
+        'time': datetime.now().isoformat(),
+        'cwd': os.getcwd(),
+        'python': os.sys.version,
+        'database_url': os.environ.get('DATABASE_URL', 'not set')[:50] + '...' if os.environ.get('DATABASE_URL') else 'not set'
     })
 
-@bp.route('/api/users')
-def api_users():
-    """Все пользователи"""
-    users = User.query.order_by(User.id.desc()).limit(20).all()
-    return jsonify([{
-        'id': u.id,
-        'name': u.name,
-        'telegram_id': u.telegram_id,
-        'created_at': u.created_at.isoformat() if u.created_at else None
-    } for u in users])
-
-@bp.route('/api/events')
-def api_events():
-    """Все события"""
-    events = Event.query.order_by(Event.start_time.desc()).limit(50).all()
-    return jsonify([{
-        'id': e.id,
-        'user_id': e.user_id,
-        'category_id': e.category_id,
-        'start_time': e.start_time.isoformat() if e.start_time else None,
-        'end_time': e.end_time.isoformat() if e.end_time else None,
-        'type': e.type,
-        'duration': int((e.end_time - e.start_time).total_seconds() / 60) if e.end_time and e.start_time else 0
-    } for e in events])
-
-@bp.route('/api/create-test-data', methods=['POST'])
-def create_test_data():
-    """Создание полного набора тестовых данных"""
-    try:
-        # Создаем пользователя
-        user = User(
-            name='Тестовый Пользователь',
-            telegram_id='987654321'
-        )
-        db.session.add(user)
-        db.session.flush()
-        
-        # Создаем категории
-        categories = []
-        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
-        names = ['Учеба', 'Работа', 'Спорт', 'Отдых', 'Хобби']
-        
-        for i, (name, color) in enumerate(zip(names, colors)):
-            cat = Category(
-                name=name,
-                color=color,
-                user_id=user.id
-            )
-            categories.append(cat)
-        
-        db.session.add_all(categories)
-        db.session.flush()
-        
-        # Создаем события
-        events = []
-        now = datetime.utcnow()
-        
-        for i in range(10):
-            start = now + timedelta(hours=i*2)
-            end = start + timedelta(hours=1, minutes=30)
-            
-            event = Event(
-                user_id=user.id,
-                category_id=categories[i % len(categories)].id,
-                start_time=start,
-                end_time=end,
-                type='plan' if i % 2 == 0 else 'fact'
-            )
-            events.append(event)
-        
-        db.session.add_all(events)
-        
-        # Создаем шаблон
-        template_data = {
-            "schedule": [
-                {"day": "Понедельник", "tasks": ["Лекции", "Лабы"]},
-                {"day": "Вторник", "tasks": ["Проект", "Тренировка"]}
-            ]
-        }
-        
-        template = Template(
-            user_id=user.id,
-            name='Мое расписание',
-            data=json.dumps(template_data, ensure_ascii=False)
-        )
-        db.session.add(template)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Создано: 1 пользователь, {len(categories)} категорий, {len(events)} событий, 1 шаблон'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@bp.route('/api/clear-db', methods=['POST'])
-def clear_database():
-    """Очистка всех данных (только для теста!)"""
-    try:
-        # Удаляем в правильном порядке (из-за foreign keys)
-        Event.query.delete()
-        Category.query.delete()
-        Template.query.delete()
-        User.query.delete()
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'База данных очищена'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 @bp.route('/api/health')
-def health_check():
-    """Проверка работоспособности"""
+def health():
+    """Проверка здоровья"""
     try:
-        user_count = User.query.count()
-        
+        db.engine.execute('SELECT 1')
         return jsonify({
             'status': 'healthy',
             'database': 'connected',
-            'users_count': user_count,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
         return jsonify({
@@ -170,3 +113,33 @@ def health_check():
             'database': 'disconnected',
             'error': str(e)
         }), 500
+
+@bp.route('/api/test')
+def test_api():
+    """Тестовый API endpoint"""
+    return jsonify({
+        'message': 'API работает!',
+        'endpoints': ['/api/health', '/debug', '/api/test', '/api/create-test'],
+        'timestamp': datetime.now().isoformat()
+    })
+
+@bp.route('/api/create-test', methods=['POST'])
+def create_test():
+    """Создание тестового пользователя"""
+    try:
+        from app.models import User
+        
+        user = User(
+            name=f'Тест {datetime.now().strftime("%H:%M:%S")}',
+            telegram_id=str(int(datetime.now().timestamp()))
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Пользователь создан! ID: {user.id}',
+            'user': {'id': user.id, 'name': user.name}
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
