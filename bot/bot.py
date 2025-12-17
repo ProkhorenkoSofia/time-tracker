@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # Конфигурация
-API_URL = os.environ.get('API_URL', 'https://your-site.onrender.com/api/v1')
+API_URL = os.environ.get('API_URL', 'https://time-tracker-z6co.onrender.com/api/v1')
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 
 # Настройка логирования
