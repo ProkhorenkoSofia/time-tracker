@@ -1,13 +1,209 @@
-{% extends "base.html" %}
-
-{% block content %}
-<div class="row">
-    <div class="col-md-8 mx-auto text-center">
-        <h1>Добро пожаловать в Time Tracker!</h1>
-        <p class="lead">Система для учёта времени и планирования задач</p>
-        <div class="mt-4">
-            <a href="/schedule" class="btn btn-primary btn-lg">Перейти к расписанию</a>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracker - База данных</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .category-color { width: 20px; height: 20px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+        .stat-card { text-align: center; padding: 20px; }
+        .stat-number { font-size: 2.5rem; font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">⏰ Time Tracker - База данных</h1>
+        <p class="lead">Система учета времени (план vs факт)</p>
+        
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number" id="user-count">0</div>
+                    <div>Пользователей</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number" id="category-count">0</div>
+                    <div>Категорий</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number" id="event-count">0</div>
+                    <div>Событий</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number" id="template-count">0</div>
+                    <div>Шаблонов</div>
+                </div>
+            </div>
         </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>📊 Статистика базы данных</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Таблица</th>
+                                    <th>Записей</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stats-table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>🔧 Управление базой данных</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Проверка работы:</h6>
+                            <a href="/test-db" class="btn btn-outline-primary btn-sm me-2" target="_blank">Тест БД</a>
+                            <a href="/api/users" class="btn btn-outline-secondary btn-sm me-2" target="_blank">API пользователей</a>
+                            <a href="/api/events" class="btn btn-outline-secondary btn-sm" target="_blank">API событий</a>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Создание тестовых данных:</h6>
+                            <button onclick="createTestUser()" class="btn btn-success btn-sm me-2">Добавить пользователя</button>
+                            <button onclick="createTestEvent()" class="btn btn-info btn-sm">Добавить событие</button>
+                        </div>
+                        <div>
+                            <h6>Ссылки:</h6>
+                            <ul>
+                                <li><a href="https://render.com/docs" target="_blank">Документация Render</a></li>
+                                <li><a href="https://flask-sqlalchemy.palletsprojects.com/" target="_blank">Документация Flask-SQLAlchemy</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>📝 Последние события</h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-events">
+                    <p>Загрузка событий...</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="mt-4 text-center text-muted">
+            <p>Курсовая работа "Разработка баз данных и окружения для проекта Time-Tracker"</p>
+            <p>База данных развернута на Render | Flask + PostgreSQL + SQLAlchemy</p>
+        </footer>
     </div>
-</div>
-{% endblock %}
+    
+    <script>
+        // Загрузка статистики
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('user-count').textContent = data.users;
+                document.getElementById('category-count').textContent = data.categories;
+                document.getElementById('event-count').textContent = data.events;
+                document.getElementById('template-count').textContent = data.templates;
+                
+                // Заполняем таблицу
+                const table = document.getElementById('stats-table');
+                table.innerHTML = `
+                    <tr><td>users</td><td>${data.users}</td><td><span class="badge bg-success">✓</span></td></tr>
+                    <tr><td>categories</td><td>${data.categories}</td><td><span class="badge bg-success">✓</span></td></tr>
+                    <tr><td>events</td><td>${data.events}</td><td><span class="badge bg-success">✓</span></td></tr>
+                    <tr><td>templates</td><td>${data.templates}</td><td><span class="badge bg-success">✓</span></td></tr>
+                `;
+                
+                // Загружаем последние события
+                loadRecentEvents();
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+        
+        async function loadRecentEvents() {
+            try {
+                const response = await fetch('/api/recent-events');
+                const events = await response.json();
+                
+                const container = document.getElementById('recent-events');
+                if (events.length === 0) {
+                    container.innerHTML = '<p>Нет событий</p>';
+                    return;
+                }
+                
+                let html = '<div class="list-group">';
+                events.forEach(event => {
+                    const date = new Date(event.start_time).toLocaleString('ru-RU');
+                    const badgeColor = event.type === 'plan' ? 'primary' : 'success';
+                    html += `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <span class="badge bg-${badgeColor} me-2">${event.type}</span>
+                                    ${date}
+                                </div>
+                                <div>${event.duration} мин.</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Ошибка загрузки событий:', error);
+            }
+        }
+        
+        // Создание тестового пользователя
+        async function createTestUser() {
+            try {
+                const response = await fetch('/api/create-test-user', { method: 'POST' });
+                const result = await response.json();
+                alert(result.message);
+                loadStats(); // Обновляем статистику
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+        
+        // Создание тестового события
+        async function createTestEvent() {
+            try {
+                const response = await fetch('/api/create-test-event', { method: 'POST' });
+                const result = await response.json();
+                alert(result.message);
+                loadStats(); // Обновляем статистику
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+        
+        // Загружаем статистику при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadStats);
+        
+        // Автообновление каждые 30 секунд
+        setInterval(loadStats, 30000);
+    </script>
+</body>
+</html>
