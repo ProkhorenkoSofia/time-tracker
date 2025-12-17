@@ -1,145 +1,198 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask_login import current_user
 from app import db
-from datetime import datetime
+from app.models import User, Category, Event, Template
+from app.auth import login_required
+from datetime import datetime, timedelta
+import json
 
-bp = Blueprint('main', __name__)
+main_bp = Blueprint('main', __name__)
 
-@bp.route('/')
-def index():
-    """Главная страница - работает без JavaScript"""
-    try:
-        from app.models import User
-        user_count = User.query.count()
-        db_status = "✅ Подключена"
-    except:
-        user_count = 0
-        db_status = "❌ Ошибка"
+@main_bp.route('/dashboard')
+@login_required
+def dashboard():
+    """Главная страница личного кабинета"""
+    # Статистика пользователя
+    stats = {
+        'categories': Category.query.filter_by(user_id=current_user.id).count(),
+        'events_today': Event.query.filter(
+            Event.user_id == current_user.id,
+            Event.start_time >= datetime.utcnow().date(),
+            Event.start_time < datetime.utcnow().date() + timedelta(days=1)
+        ).count(),
+        'total_events': Event.query.filter_by(user_id=current_user.id).count(),
+        'templates': Template.query.filter_by(user_id=current_user.id).count()
+    }
     
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Time Tracker - База данных</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body style="padding: 20px; background: #f8f9fa;">
-        <div class="container">
-            <h1 class="mb-4">⏰ Time Tracker Database</h1>
-            <div class="alert alert-success">
-                <h4>✅ Сайт работает на Render!</h4>
-                <p>Flask + PostgreSQL + SQLAlchemy</p>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">Статус базы данных</div>
-                        <div class="card-body">
-                            <p><strong>Статус:</strong> {db_status}</p>
-                            <p><strong>Пользователей:</strong> {user_count}</p>
-                            <p><strong>Время сервера:</strong> {datetime.now().strftime('%H:%M:%S')}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">Проверка API</div>
-                        <div class="card-body">
-                            <p>Проверьте эти ссылки:</p>
-                            <ul>
-                                <li><a href="/api/health" target="_blank">/api/health</a> - Проверка работы</li>
-                                <li><a href="/api/test" target="_blank">/api/test</a> - Тестовый API</li>
-                                <li><a href="/debug" target="_blank">/debug</a> - Отладка</li>
-                            </ul>
-                            <button onclick="location.reload()" class="btn btn-primary">Обновить страницу</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">Управление базой данных</div>
-                <div class="card-body">
-                    <h5>Создать тестовые данные:</h5>
-                    <form action="/api/create-test" method="POST">
-                        <button type="submit" class="btn btn-success">Создать тестового пользователя</button>
-                    </form>
-                    
-                    <hr>
-                    
-                    <h5>Техническая информация:</h5>
-                    <p><strong>Stack:</strong> Flask, PostgreSQL, SQLAlchemy</p>
-                    <p><strong>Хостинг:</strong> Render.com</p>
-                    <p><strong>Курсовая работа</strong> по дисциплине "Структура ПО и БД"</p>
-                </div>
-            </div>
-            
-            <footer class="mt-4 text-center text-muted">
-                <p>База данных Time Tracker | {datetime.now().year}</p>
-            </footer>
-        </div>
-    </body>
-    </html>
-    """
+    # Последние события
+    recent_events = Event.query.filter_by(
+        user_id=current_user.id
+    ).order_by(Event.start_time.desc()).limit(5).all()
+    
+    # Категории для формы
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('dashboard.html', 
+                         stats=stats, 
+                         recent_events=recent_events,
+                         categories=categories,
+                         user=current_user)
 
-@bp.route('/debug')
-def debug():
-    """Отладочная информация"""
-    import os
-    return jsonify({
-        'status': 'ok',
-        'time': datetime.now().isoformat(),
-        'cwd': os.getcwd(),
-        'python': os.sys.version,
-        'database_url': os.environ.get('DATABASE_URL', 'not set')[:50] + '...' if os.environ.get('DATABASE_URL') else 'not set'
-    })
+@main_bp.route('/profile')
+@login_required
+def profile():
+    """Страница профиля пользователя"""
+    return render_template('profile.html', user=current_user)
 
-@bp.route('/api/health')
-def health():
-    """Проверка здоровья"""
-    try:
-        db.engine.execute('SELECT 1')
-        return jsonify({
-            'status': 'healthy',
-            'database': 'connected',
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'database': 'disconnected',
-            'error': str(e)
-        }), 500
-
-@bp.route('/api/test')
-def test_api():
-    """Тестовый API endpoint"""
-    return jsonify({
-        'message': 'API работает!',
-        'endpoints': ['/api/health', '/debug', '/api/test', '/api/create-test'],
-        'timestamp': datetime.now().isoformat()
-    })
-
-@bp.route('/api/create-test', methods=['POST'])
-def create_test():
-    """Создание тестового пользователя"""
-    try:
-        from app.models import User
+@main_bp.route('/categories', methods=['GET', 'POST'])
+@login_required
+def manage_categories():
+    """Управление категориями пользователя"""
+    if request.method == 'POST':
+        name = request.form.get('name')
+        color = request.form.get('color', '#007bff')
         
-        user = User(
-            name=f'Тест {datetime.now().strftime("%H:%M:%S")}',
-            telegram_id=str(int(datetime.now().timestamp()))
+        if not name:
+            flash('Название категории обязательно', 'danger')
+            return redirect(url_for('main.manage_categories'))
+        
+        # Проверяем уникальность для этого пользователя
+        existing = Category.query.filter_by(
+            user_id=current_user.id, 
+            name=name
+        ).first()
+        
+        if existing:
+            flash('Категория с таким названием уже существует', 'warning')
+            return redirect(url_for('main.manage_categories'))
+        
+        category = Category(
+            name=name,
+            color=color,
+            user_id=current_user.id
         )
-        db.session.add(user)
+        
+        db.session.add(category)
         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'message': f'Пользователь создан! ID: {user.id}',
-            'user': {'id': user.id, 'name': user.name}
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Категория "{name}" создана!', 'success')
+        return redirect(url_for('main.dashboard'))
+    
+    # все категории пользователя
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    return render_template('categories.html', categories=categories)
+
+@main_bp.route('/events', methods=['GET', 'POST'])
+@login_required
+def manage_events():
+    """Управление событиями пользователя"""
+    if request.method == 'POST':
+        category_id = request.form.get('category_id')
+        event_type = request.form.get('type')
+        start_time = request.form.get('start_time')
+        end_time = request.form.get('end_time')
+        description = request.form.get('description', '')
+        
+        # Валидация
+        category = Category.query.filter_by(
+            id=category_id, 
+            user_id=current_user.id
+        ).first()
+        
+        if not category:
+            flash('Выберите корректную категорию', 'danger')
+            return redirect(url_for('main.manage_events'))
+        
+        try:
+            start_dt = datetime.fromisoformat(start_time.replace('T', ' '))
+            end_dt = datetime.fromisoformat(end_time.replace('T', ' '))
+            
+            if end_dt <= start_dt:
+                flash('Время окончания должно быть позже времени начала', 'danger')
+                return redirect(url_for('main.manage_events'))
+            
+            event = Event(
+                user_id=current_user.id,
+                category_id=category_id,
+                type=event_type,
+                start_time=start_dt,
+                end_time=end_dt,
+                source='web'
+            )
+            
+            db.session.add(event)
+            db.session.commit()
+            
+            flash('Событие успешно добавлено!', 'success')
+            return redirect(url_for('main.dashboard'))
+            
+        except ValueError:
+            flash('Неверный формат времени', 'danger')
+            return redirect(url_for('main.manage_events'))
+    
+    # показать форму с категориями пользователя
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    return render_template('events.html', categories=categories)
+
+@main_bp.route('/api/my/stats')
+@login_required
+def api_my_stats():
+    """Статистика текущего пользователя"""
+    today = datetime.utcnow().date()
+    tomorrow = today + timedelta(days=1)
+    
+    return jsonify({
+        'user': {
+            'id': current_user.id,
+            'username': current_user.username,
+            'telegram_linked': bool(current_user.telegram_id)
+        },
+        'stats': {
+            'categories': Category.query.filter_by(user_id=current_user.id).count(),
+            'events_today': Event.query.filter(
+                Event.user_id == current_user.id,
+                Event.start_time >= today,
+                Event.start_time < tomorrow
+            ).count(),
+            'events_total': Event.query.filter_by(user_id=current_user.id).count(),
+            'plans_vs_facts': {
+                'plan': Event.query.filter_by(user_id=current_user.id, type='plan').count(),
+                'fact': Event.query.filter_by(user_id=current_user.id, type='fact').count()
+            }
+        }
+    })
+
+@main_bp.route('/api/my/events')
+@login_required
+def api_my_events():
+    """События текущего пользователя с фильтрацией"""
+    # Параметры фильтрации
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    category_id = request.args.get('category_id')
+    event_type = request.args.get('type')
+    
+    query = Event.query.filter_by(user_id=current_user.id)
+    
+    if start_date:
+        query = query.filter(Event.start_time >= datetime.fromisoformat(start_date))
+    if end_date:
+        query = query.filter(Event.start_time <= datetime.fromisoformat(end_date))
+    if category_id:
+        query = query.filter(Event.category_id == category_id)
+    if event_type:
+        query = query.filter(Event.type == event_type)
+    
+    events = query.order_by(Event.start_time.desc()).limit(100).all()
+    
+    return jsonify([{
+        'id': e.id,
+        'category': e.category.name,
+        'category_color': e.category.color,
+        'type': e.type,
+        'start_time': e.start_time.isoformat(),
+        'end_time': e.end_time.isoformat(),
+        'duration_minutes': int((e.end_time - e.start_time).total_seconds() / 60),
+        'source': e.source,
+        'created_at': e.created_at.isoformat()
+    } for e in events])
