@@ -34,7 +34,7 @@ def telegram_auth():
         return jsonify({
             'status': 'needs_registration',
             'message': 'Please complete registration via web interface first',
-            'registration_url': f'https://your-site.onrender.com/register?telegram_id={telegram_id}'
+            'registration_url': f'https://time-tracker-z6co.onrender.com/register?telegram_id={telegram_id}'
         }), 404
 
 @api_bp.route('/telegram/categories', methods=['GET'])
